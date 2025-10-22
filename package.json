@@ -1,0 +1,16 @@
+{
+  "name": "mezon-bot-example",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "start": "nodemon index"
+  },
+  "dependencies": {
+    "child_process": "^1.0.2",
+    "dotenv": "^16.4.5",
+    "mezon-sdk": "^2.7.93"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.7"
+  }
+}
