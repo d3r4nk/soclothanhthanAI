@@ -32,7 +32,7 @@ async function main() {
         const channelFetch = await client.channels.fetch(event.channel_id);
         await channelFetch.send({ t: "Đoán số đê" });
 
-        const py = spawn("python3", ["borderlandguessinggame.py"]);
+        const py = spawn("python", ["borderlandguessinggame.py"]);
 
         py.stdout.on("data", async (data) => {
           const msg = data.toString().trim();
