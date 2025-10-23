@@ -1,7 +1,6 @@
-
 import random
-import math
-from typing import List, Tuple, Optional
+import sys
+from typing import List, Optional
 
 INT_MIN = 1
 INT_MAX = 100
@@ -33,7 +32,6 @@ def simulate_others_picks(
         val = clamp(val, INT_MIN, INT_MAX)
         if avoid is not None and random.random() < 0.55:
             if val == avoid:
-                # Move away by 1..3
                 shift = random.choice([-3, -2, -1, 1, 2, 3])
                 val = clamp(val + shift, INT_MIN, INT_MAX)
         picks.append(val)
@@ -58,7 +56,6 @@ def evaluate_round_outcome(
         if count_same_as_me >= 2:
             util -= 1.0  
     util -= 0.01 * abs(my_pick - m)
-
     return util
 
 def minimax_bot_pick(
@@ -102,16 +99,14 @@ def minimax_bot_pick(
             avg_util = total / trials
             if avg_util < worst_case:
                 worst_case = avg_util
-
         value = worst_case + jitter
         if value > best_value:
             best_value = value
             best_pick = my_pick
     return best_pick if best_pick is not None else 40
 
-def play_round(players: List[Player]) -> None:
-    import sys
-
+def play_round(players: List[Player]) -> bool:
+    """Play one round. Returns True if should continue, False if error."""
     alive_indices = [i for i, p in enumerate(players) if p.alive]
     n_alive = len(alive_indices)
     picks = {}
@@ -119,35 +114,49 @@ def play_round(players: List[Player]) -> None:
     for i in alive_indices:
         p = players[i]
         if p.is_human:
-            print("Chờ người chơi nhập số (1–100)...", flush=True)
-            raw = sys.stdin.readline().strip()
+            print("Nhập số (1–100) hoặc 'q' để thoát:", flush=True)
+            try:
+                raw = sys.stdin.readline().strip()
+            except:
+                print("Lỗi đọc input.", flush=True)
+                return False
+            
+            if not raw:
+                print("Input trống. Vui lòng thử lại.", flush=True)
+                return False
+                
             if raw.lower() in ("q", "quit", "exit"):
-                raise KeyboardInterrupt
+                print("Bạn đã thoát game.", flush=True)
+                return False
+            
             try:
                 x = int(raw)
                 if INT_MIN <= x <= INT_MAX:
                     picks[i] = x
                 else:
-                    print(f"Số không hợp lệ: {x}", flush=True)
-                    return
+                    print(f"❌ Số không hợp lệ: {x}. Phải từ {INT_MIN} đến {INT_MAX}.", flush=True)
+                    return False
             except ValueError:
-                print(f"Dữ liệu không hợp lệ: {raw}", flush=True)
-                return
+                print(f"❌ Dữ liệu không hợp lệ: '{raw}'. Vui lòng nhập số nguyên.", flush=True)
+                return False
         else:
             bot_pick = minimax_bot_pick(players, i)
             picks[i] = bot_pick
 
     for i, x in picks.items():
         players[i].last_choice = x
+    
     chosen = [picks[i] for i in alive_indices]
     avg = sum(chosen) / len(chosen)
     m = 0.8 * avg
     distances = {i: abs(picks[i] - m) for i in alive_indices}
     min_dist = min(distances.values())
     winners = [i for i, d in distances.items() if abs(d - min_dist) < 1e-9]
+    
     for i in alive_indices:
         if i not in winners:
             players[i].points -= 1
+    
     if n_alive in (2, 3):
         count_by_num = {}
         for i in alive_indices:
@@ -157,6 +166,7 @@ def play_round(players: List[Player]) -> None:
             if len(ids) >= 2:
                 for i in ids:
                     players[i].points -= 1
+    
     for i in alive_indices:
         if players[i].points <= 0:
             players[i].alive = False
@@ -172,39 +182,38 @@ def play_round(players: List[Player]) -> None:
         print("Người gần m nhất (đồng hạng): " + ", ".join(players[i].name for i in winners), flush=True)
     else:
         print("Người gần m nhất: " + players[winners[0]].name, flush=True)
+    
+    return True
+
 def print_scoreboard(players: List[Player]):
     alive = [p for p in players if p.alive]
     dead = [p for p in players if not p.alive]
-    print("\n===== BẢNG ĐIỂM =====")
+    print("\n===== BẢNG ĐIỂM =====", flush=True)
     for p in sorted(alive, key=lambda x: (-x.points, x.name)):
-        tag = "(player1)" if p.is_human else ""
-        print(f"{p.name:>10} {tag:6}  |  {p.points} điểm")
+        tag = "(BẠN)" if p.is_human else ""
+        print(f"{p.name:>10} {tag:6}  |  {p.points} điểm", flush=True)
     if dead:
-        print("ĐÃ LOẠI: " + ", ".join(f"{p.name}" for p in dead))
+        print("ĐÃ LOẠI: " + ", ".join(f"{p.name}" for p in dead), flush=True)
 
 def game_loop():
-    print("Rules:")
-    print("- Mỗi người bắt đầu với 10 điểm.")
-    print("- Ai gần m nhất: giữ điểm. Người khác: -1 điểm.")
-    print("- Về cuối (còn 2-3 người): nếu chọn trùng số, mỗi người đó bị -1 điểm thêm.")
-    print("- Nhập 'q' để thoát sớm.\n")
-    while True:
-        try:
-            n_raw = input("Chọn độ khó (số người chơi tổng, 2..10): ").strip()
-            if n_raw.lower() in ("q", "quit", "exit"):
-                print("Tạm biệt!")
-                return
-            n = int(n_raw)
-            if 2 <= n <= 10:
-                break
-        except ValueError:
-            pass
-        print(" Vui lòng nhập một số nguyên trong khoảng 2..10.")
+    # Get difficulty from command line argument
+    n = int(sys.argv[1]) if len(sys.argv) > 1 else 5
+    n = max(2, min(10, n))  # Clamp between 2-10
+    
+    print("🎮 GAME ĐOÁN SỐ BẮT ĐẦU!", flush=True)
+    print(f"Số người chơi: {n} (Bạn + {n-1} Bot)", flush=True)
+    print("\n📜 Luật chơi:", flush=True)
+    print("- Mỗi người bắt đầu với 10 điểm.", flush=True)
+    print("- Mỗi vòng, chọn số từ 1-100.", flush=True)
+    print("- m = 0.8 × trung bình các số đã chọn.", flush=True)
+    print("- Ai gần m nhất: giữ điểm. Người khác: -1 điểm.", flush=True)
+    print("- Khi còn 2-3 người: chọn trùng số = -1 điểm thêm.", flush=True)
+    print("- Nhập 'q' để thoát.\n", flush=True)
 
     players: List[Player] = []
     players.append(Player("Bạn", True))
     for i in range(1, n):
-        players.append(Player(f"Bot {i}", False))
+        players.append(Player(f"Bot{i}", False))
 
     round_idx = 1
     try:
@@ -212,25 +221,42 @@ def game_loop():
             alive_players = [p for p in players if p.alive]
             if len(alive_players) <= 1:
                 break
-            print(f"\n========== VÁN {round_idx} ==========")
+            
+            print(f"\n{'='*10} VÁN {round_idx} {'='*10}", flush=True)
             print_scoreboard(players)
-            play_round(players)
+            
+            if not play_round(players):
+                break
+            
             round_idx += 1
+            
     except KeyboardInterrupt:
-        print("\nnBro đã out meta")
+        print("\nGame bị gián đoạn.", flush=True)
+    except Exception as e:
+        print(f"\nLỗi: {e}", flush=True)
+    
+    print("\n" + "="*30, flush=True)
+    print("GAME KẾT THÚC", flush=True)
+    print("="*30, flush=True)
     print_scoreboard(players)
+    
     winners = [p for p in players if p.alive]
     if not winners:
-        print("\nHoà!")
+        print("\n🤝 Hoà! Không ai còn điểm.", flush=True)
     elif len(winners) == 1:
-        print(f"\nWinner winner chicken dinner: {winners[0].name}!")
+        is_human = winners[0].is_human
+        emoji = "🎉" if is_human else "🤖"
+        print(f"\n{emoji} WINNER: {winners[0].name}!", flush=True)
     else:
         top_points = max(p.points for p in winners)
         top = [p for p in winners if p.points == top_points]
         if len(top) == 1:
-            print(f"\n🏆 Winner winner chicken dinner: {top[0].name}!")
+            is_human = top[0].is_human
+            emoji = "🎉" if is_human else "🤖"
+            print(f"\n{emoji} WINNER: {top[0].name}!", flush=True)
         else:
-            print("\n🏆 Winner winner chicken dinner: " + ", ".join(p.name for p in top))
+            print("\n🏆 WINNERS (đồng hạng): " + ", ".join(p.name for p in top), flush=True)
+
 if __name__ == "__main__":
-    random.seed()  
+    random.seed()
     game_loop()
