@@ -2,8 +2,11 @@
   "name": "mezon-bot-example",
   "version": "1.0.0",
   "private": true,
+  "main": "index.js",
+  "type": "commonjs",
   "scripts": {
-    "start": "nodemon index"
+    "start": "nodemon index",
+    "dev": "nodemon index.js"
   },
   "dependencies": {
     "child_process": "^1.0.2",
@@ -13,4 +16,5 @@
   "devDependencies": {
     "nodemon": "^3.1.7"
   }
+  
 }
